@@ -1,0 +1,1 @@
+D:/Bengalore/Assignment/Task8/node_modules/@embedded-postgres/windows-x64/native/bin/postgres.exe "-D" "D:\Bengalore\Assignment\Task8\.data\postgres" "-p" "5432"

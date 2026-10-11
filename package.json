@@ -1,0 +1,31 @@
+{
+  "name": "workwise",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "test": "npm run test --workspace=apps/api && npm run test --workspace=apps/web",
+    "test:e2e": "npm run test:e2e --workspace=tests",
+    "lint": "npm run lint --workspace=apps/api && npm run lint --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/api && npm run typecheck --workspace=apps/web",
+    "db:start": "npx tsx scripts/start-db.ts",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:migrate:prod": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma",
+    "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma --force"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "typescript": "^5.3.3"
+  }
+}

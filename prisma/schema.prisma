@@ -1,0 +1,288 @@
+// WorkWise Industrial Procurement SaaS — PostgreSQL Schema
+// Prisma ORM v5
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+  PENDING_REVIEW
+}
+
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT_TO_VENDOR
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CANCELLED
+  CLOSED
+}
+
+enum GRStatus {
+  DRAFT
+  CONFIRMED
+  INSPECTED
+  ACCEPTED
+  REJECTED
+}
+
+enum ActivityType {
+  PO_CREATED
+  PO_APPROVED
+  PO_SENT
+  PO_CANCELLED
+  GR_CREATED
+  GR_CONFIRMED
+  VENDOR_CREATED
+  VENDOR_UPDATED
+  USER_LOGIN
+  USER_CREATED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(VIEWER)
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  purchaseOrders    PurchaseOrder[]   @relation("CreatedBy")
+  approvedOrders    PurchaseOrder[]   @relation("ApprovedBy")
+  goodsReceipts     GoodsReceipt[]    @relation("ReceivedBy")
+  activityLogs      ActivityLog[]
+  refreshTokens     RefreshToken[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VENDOR MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Vendor {
+  id              String       @id @default(cuid())
+  code            String       @unique // e.g. VND-001
+  name            String
+  legalName       String?
+  email           String
+  phone           String?
+  website         String?
+  status          VendorStatus @default(ACTIVE)
+  category        String       // e.g. "Electrical", "Civil", "Mechanical"
+  registrationNo  String?      @unique
+  taxId           String?
+  address         String?
+  city            String?
+  state           String?
+  country         String       @default("India")
+  pincode         String?
+  rating          Float?       // 1.0 - 5.0
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  contacts        VendorContact[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([status])
+  @@index([category])
+  @@index([name])
+  @@map("vendors")
+}
+
+model VendorContact {
+  id         String   @id @default(cuid())
+  vendorId   String
+  name       String
+  designation String?
+  email      String?
+  phone      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@map("vendor_contacts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PURCHASE ORDERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  poNumber        String    @unique // e.g. PO-2024-001
+  vendorId        String
+  createdById     String
+  approvedById    String?
+  status          POStatus  @default(DRAFT)
+  title           String
+  description     String?
+  deliveryAddress String?
+  deliveryDate    DateTime?
+  currency        String    @default("INR")
+  subtotal        Decimal   @db.Decimal(15, 2) @default(0)
+  taxAmount       Decimal   @db.Decimal(15, 2) @default(0)
+  discountAmount  Decimal   @db.Decimal(15, 2) @default(0)
+  totalAmount     Decimal   @db.Decimal(15, 2) @default(0)
+  notes           String?
+  terms           String?
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  vendor        Vendor          @relation(fields: [vendorId], references: [id])
+  createdBy     User            @relation("CreatedBy", fields: [createdById], references: [id])
+  approvedBy    User?           @relation("ApprovedBy", fields: [approvedById], references: [id])
+  lineItems     POLineItem[]
+  goodsReceipts GoodsReceipt[]
+
+  @@index([status])
+  @@index([vendorId])
+  @@index([createdById])
+  @@index([poNumber])
+  @@index([createdAt])
+  @@map("purchase_orders")
+}
+
+model POLineItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  itemCode        String?
+  description     String
+  unit            String        @default("Nos")
+  quantity        Decimal       @db.Decimal(15, 3)
+  unitPrice       Decimal       @db.Decimal(15, 2)
+  taxPercent      Decimal       @db.Decimal(5, 2) @default(18)
+  totalPrice      Decimal       @db.Decimal(15, 2)
+  receivedQty     Decimal       @db.Decimal(15, 3) @default(0)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receiptItems    GRLineItem[]
+
+  @@index([purchaseOrderId])
+  @@map("po_line_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GOODS RECEIPT
+// ─────────────────────────────────────────────────────────────────────────────
+
+model GoodsReceipt {
+  id              String    @id @default(cuid())
+  grNumber        String    @unique // e.g. GR-2024-001
+  purchaseOrderId String
+  receivedById    String
+  status          GRStatus  @default(DRAFT)
+  receivedDate    DateTime  @default(now())
+  vehicleNumber   String?
+  driverName      String?
+  invoiceNumber   String?
+  invoiceDate     DateTime?
+  notes           String?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  receivedBy    User           @relation("ReceivedBy", fields: [receivedById], references: [id])
+  lineItems     GRLineItem[]
+
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([receivedDate])
+  @@map("goods_receipts")
+}
+
+model GRLineItem {
+  id            String   @id @default(cuid())
+  goodsReceiptId String
+  poLineItemId  String
+  receivedQty   Decimal  @db.Decimal(15, 3)
+  acceptedQty   Decimal  @db.Decimal(15, 3)
+  rejectedQty   Decimal  @db.Decimal(15, 3) @default(0)
+  remarks       String?
+  createdAt     DateTime @default(now())
+
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poLineItem   POLineItem   @relation(fields: [poLineItemId], references: [id])
+
+  @@index([goodsReceiptId])
+  @@index([poLineItemId])
+  @@map("gr_line_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY LOG
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id           String       @id @default(cuid())
+  userId       String
+  type         ActivityType
+  entityType   String       // "PurchaseOrder", "Vendor", etc.
+  entityId     String
+  entityLabel  String       // Human-readable identifier
+  description  String
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
