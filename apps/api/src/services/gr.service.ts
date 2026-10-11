@@ -6,13 +6,25 @@ import { logger } from '../config/logger';
 import type { CreateGRInput, GRQueryInput, UpdateGRStatusInput } from '../validators/gr.validator';
 import type { AuthPayload } from '../types';
 
-let grCounter = 0;
-
 async function generateGRNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await prisma.goodsReceipt.count();
-  const seq = String(count + 1 + grCounter++).padStart(4, '0');
-  return `GR-${year}-${seq}`;
+  let grNumber = '';
+  let exists = true;
+  let attempts = 0;
+
+  do {
+    const count = await prisma.goodsReceipt.count();
+    const seq = String(count + 1 + attempts).padStart(4, '0');
+    grNumber = `GR-${year}-${seq}`;
+    const found = await prisma.goodsReceipt.findUnique({ where: { grNumber } });
+    exists = !!found;
+    attempts++;
+  } while (exists && attempts < 50);
+
+  if (exists) {
+    grNumber = `GR-${year}-${Date.now().toString().slice(-4)}`;
+  }
+  return grNumber;
 }
 
 export async function listGoodsReceipts(query: GRQueryInput) {

@@ -6,13 +6,25 @@ import { logger } from '../config/logger';
 import type { CreatePOInput, UpdatePOInput, POQueryInput, POStatusInput } from '../validators/po.validator';
 import type { AuthPayload } from '../types';
 
-let poCounter = 0;
-
 async function generatePONumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await prisma.purchaseOrder.count();
-  const seq = String(count + 1 + poCounter++).padStart(4, '0');
-  return `PO-${year}-${seq}`;
+  let poNumber = '';
+  let exists = true;
+  let attempts = 0;
+
+  do {
+    const count = await prisma.purchaseOrder.count();
+    const seq = String(count + 1 + attempts).padStart(4, '0');
+    poNumber = `PO-${year}-${seq}`;
+    const found = await prisma.purchaseOrder.findUnique({ where: { poNumber } });
+    exists = !!found;
+    attempts++;
+  } while (exists && attempts < 50);
+
+  if (exists) {
+    poNumber = `PO-${year}-${Date.now().toString().slice(-4)}`;
+  }
+  return poNumber;
 }
 
 function calculateLineItemTotal(qty: number, unitPrice: number, taxPercent: number): Decimal {
@@ -311,6 +323,10 @@ export async function updatePurchaseOrderStatus(
           approvedAt: new Date(),
         }),
         ...(input.action === 'send' && { sentAt: new Date() }),
+      },
+      include: {
+        vendor: { select: { id: true, name: true, code: true } },
+        lineItems: true,
       },
     });
 

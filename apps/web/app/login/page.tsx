@@ -144,7 +144,7 @@ export default function LoginPage() {
 
         {/* Footer info */}
         <div className="text-center mt-6 text-xs text-slate-400">
-          Industrial Procurement Platform &copy; {new Date().getFullYear()} WorkWise
+          Industrial Procurement Platform &copy; 2026 WorkWise
         </div>
       </div>
     </div>

@@ -45,7 +45,9 @@ export function AppLayout({
   return (
     <div className="flex h-screen bg-[#0b0f17] text-slate-100 overflow-hidden">
       {/* Sidebar navigation */}
-      <Sidebar />
+      <React.Suspense fallback={<aside className="w-64 bg-[#0d131f] border-r border-slate-800" />}>
+        <Sidebar />
+      </React.Suspense>
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">

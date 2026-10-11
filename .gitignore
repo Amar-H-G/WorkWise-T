@@ -9,5 +9,6 @@ coverage/
 .nyc_output/
 logs/
 *.tsbuildinfo
+.data/
 .DS_Store
 Thumbs.db
